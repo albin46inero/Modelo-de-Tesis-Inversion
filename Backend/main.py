@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -5,13 +6,14 @@ from pgmpy.models import BayesianNetwork
 from pgmpy.inference import VariableElimination
 from pgmpy.factors.discrete import TabularCPD
 import numpy as np
-from typing import List, Optional # 🔥 NUEVO: Se agrega Optional
+from typing import List, Optional
 from datetime import datetime
 
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
-DATABASE_URL = "postgresql+psycopg2://postgres:root@localhost:5432/prototipo_tesis"
+# 🔥 CORREGIDO: Usa la variable de entorno de Render, o SQLite por defecto
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tesis.db")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -33,7 +35,7 @@ class ConsultaDB(Base):
     recomendacion = Column(String)
     probabilidad = Column(Float)
     
-    # 🔥 NUEVO: Campos para la validación del experto (nullable=True permite que sean vacíos si es un usuario nuevo)
+    # Campos para la validación del experto
     experiencia_real_rentabilidad = Column(String, nullable=True)
     experiencia_real_rotacion = Column(String, nullable=True)
     comentario_experto = Column(String, nullable=True)
@@ -191,7 +193,6 @@ class ConsultaRequest(BaseModel):
     ubicacion: str
     origen: str
     calidad: str
-    # 🔥 NUEVO: Campos opcionales para la validación del experto
     experiencia_real_rentabilidad: Optional[str] = None
     experiencia_real_rotacion: Optional[str] = None
     comentario_experto: Optional[str] = None
@@ -328,7 +329,6 @@ def consultar(consulta: ConsultaRequest, db: Session = Depends(get_db)):
 
     consejo = f"Con Bs. {consulta.capital:.0f} en {consulta.tipo_producto} ({consulta.temporada}), podrías ganar Bs. {ganancia_estimada:.0f} en {tiempo_recuperacion} días vendiendo {unidades_estimadas} unidades."
 
-    # 🔥 NUEVO: Guardar la validación del experto en la base de datos
     nueva_consulta = ConsultaDB(
         tipo_producto=consulta.tipo_producto, capital=consulta.capital,
         experiencia=consulta.experiencia, temporada=consulta.temporada,
@@ -360,7 +360,6 @@ def ver_historial(db: Session = Depends(get_db)):
         "ubicacion": c.ubicacion, "ganancia_estimada": c.ganancia_estimada,
         "tiempo_recuperacion_dias": c.tiempo_recuperacion_dias,
         "recomendacion": c.recomendacion, "probabilidad": c.probabilidad,
-        # 🔥 NUEVO: Incluir validación en el historial
         "experiencia_real_rentabilidad": c.experiencia_real_rentabilidad,
         "experiencia_real_rotacion": c.experiencia_real_rotacion,
         "comentario_experto": c.comentario_experto
